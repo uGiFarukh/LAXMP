@@ -8,7 +8,98 @@
 ### -------------------------
 ###
 ###
-###
 
 version: '3'
 
+###########################################################################
+# SERVICE
+###########################################################################
+
+services:
+  # --------------------------------------------------
+  # Apache HTTPD Server
+  # --------------------------------------------------
+  httpd:
+    image: devilbox/apache-2.4:release-0.13
+    restart: always
+    environment:
+      - TIMEZONE
+      - NEW_UID
+      - NEW_GID
+      - DEBUG_COMPOSE_ENTRYPOINT
+      - PHP_FPM_ENABLE=1
+      - PHP_FPM_SERVER_ADDR=php
+      - PHP_FPM_SERVER_PORT=9000
+      - MAIN_VHOST_DISABLE=1
+      - MASS_VHOST_ENABLE=1
+      - MASS_VHOST_TLD=.com
+      - MASS_VHOST_DOCROOT=web
+    volumes:
+      - ${LAXMP_PATH}/www:/shared/httpd
+      - ${LAXMP_PATH}/cfg/httpd:/etc/httpd-custom.d
+      - ${LAXMP_PATH}/log/httpd:/var/log/apache-2.4
+    ports:
+      - "${HOST_LISTEN_ADDR}${HOST_PORT_HTTPD}:80"
+    networks:
+      app_laxmp_net:
+        ipv4_address: 173.25.5.3
+    depends_on:
+      - php
+  # --------------------------------------------------
+  # PHP FPM Proxy
+  # --------------------------------------------------
+  php:
+    image: devilbox/php-fpm:7.1-prod
+    restart: always
+    env_file: ./.env
+    environment:
+      - TIMEZONE=UTC
+      - DEBUG_ENTRYPOINT=0
+      - DOCKER_LOGS=0
+    volumes:
+      - ${LAXMP_PATH}/cfg/php:/etc/php-custom.d
+      - ${LAXMP_PATH}/log/php:/var/log/php
+      - ${LAXMP_PATH}/mod/php:/etc/php-modules.d
+    networks:
+      app_laxmp_net:
+        ipv4_address: 173.25.5.4
+    dns:
+      - 8.8.8.8
+      - 4.2.2.5
+      - 8.8.4.4
+  # --------------------------------------------------
+  # MySQL Database Server
+  # --------------------------------------------------
+  mysql:
+    image: cytopia/mysql-5.7:latest
+    environment:
+      - TIMEZONE
+      - DEBUG_COMPOSE_ENTRYPOINT
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_SOCKET_DIR=/tmp/mysql
+      - MYSQL_GENERAL_LOG=${MYSQL_GENERAL_LOG}
+    volumes:
+      - ${LAXMP_PATH}/log/mysql:/var/log/mysql
+      - ${LAXMP_PATH}/cfg/mysql:/etc/mysql/docker-default.d:ro
+      - ${LAXMP_PATH}/sql:/var/lib/mysql
+    networks:
+      app_laxmp_net:
+        ipv4_address: 173.25.5.5
+    depends_on:
+      - httpd
+
+###########################################################################
+# NETWORK
+###########################################################################
+networks:
+  app_laxmp_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+        - subnet: 173.25.5.0/24
+###########################################################################
+###########################################################################
+###########################################################################
